@@ -62,6 +62,7 @@ func (i *index) Name() string {
 
 // find the associated record's position in the store with its offset value
 // 'in' is a relative offset
+// returns the output relative offset, position of record in the store, error
 func (i *index) Read(in int64) (out uint32, pos uint64, err error) {
 	if i.size == 0 {
 		return 0, 0, io.EOF
@@ -91,7 +92,7 @@ func (i *index) Write(off uint32, pos uint64) error {
 	if uint64(len(i.mmap)) < i.size+entWidth {
 		return io.EOF
 	}
-	// add to the end of the index
+	// add to the end of the index. offsets are relative to the base(first) offset
 	enc.PutUint32(i.mmap[i.size:i.size+offWidth], off)
 	enc.PutUint64(i.mmap[i.size+offWidth:i.size+entWidth], pos)
 	i.size += uint64(entWidth)
