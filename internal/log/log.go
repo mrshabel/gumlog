@@ -104,6 +104,7 @@ func (l *Log) Read(off uint64) (*api.Record, error) {
 	// offset should be between baseOffset of segment and
 	// nextOffset of the same segment
 	var s *segment
+	// TODO: use binary search
 	for _, segment := range l.segments {
 		if segment.baseOffset <= off && off < segment.nextOffset {
 			s = segment
@@ -195,7 +196,8 @@ type originReader struct {
 func (o *originReader) Read(p []byte) (int, error) {
 	// read content of store from offset
 	n, err := o.ReadAt(p, o.off)
-	if err != nil {
+	// EOF may be returned in cases where the allocated byte slice exceeds data read
+	if err != nil && err != io.EOF {
 		return 0, err
 	}
 	o.off += int64(n)
