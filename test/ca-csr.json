@@ -1,0 +1,16 @@
+{
+    "CN": "Shabel  CA",
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "GH",
+            "L": "Accra",
+            "O": "Shabel Services",
+            "OU": "CA Services",
+            "ST": "Greater Accra"
+        }
+    ]
+}

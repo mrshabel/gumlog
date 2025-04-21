@@ -20,9 +20,9 @@ type Config struct {
 // grpc server stub implementation
 var _ api.LogServer = (*grpcServer)(nil)
 
-func NewGRPCServer(config *Config) (*grpc.Server, error) {
+func NewGRPCServer(config *Config, opts ...grpc.ServerOption) (*grpc.Server, error) {
 	// create a new grpc server and register the service
-	gsrv := grpc.NewServer()
+	gsrv := grpc.NewServer(opts...)
 	srv, err := newGRPCServer(config)
 	if err != nil {
 		return nil, err

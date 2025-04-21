@@ -7,9 +7,11 @@ import (
 	"testing"
 
 	api "github.com/mrshabel/gumlog/api/v1"
+	"github.com/mrshabel/gumlog/internal/config"
 	"github.com/mrshabel/gumlog/internal/log"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 )
 
@@ -40,13 +42,32 @@ func TestServer(t *testing.T) {
 func setupTest(t *testing.T, fn func(*Config)) (client api.LogClient, cfg *Config, teardown func()) {
 	t.Helper()
 	// 0 picks up any arbitrary port
-	l, err := net.Listen("tcp", ":0")
+	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
 	// setup an insecure connection
-	clientOptions := []grpc.DialOption{grpc.WithInsecure()}
-	clientConn, err := grpc.NewClient(l.Addr().String(), clientOptions...)
+	// clientOptions := []grpc.DialOption{grpc.WithInsecure()}
+
+	// setup secure client connection by using the configured CA as the client's Root CA
+	clientTLSConfig, err := config.SetupTLSConfig(config.TLSConfig{
+		CAFile: config.CAFile,
+	})
 	require.NoError(t, err)
+
+	// obtain the client credentials
+	clientCreds := credentials.NewTLS(clientTLSConfig)
+	clientConn, err := grpc.NewClient(l.Addr().String(), grpc.WithTransportCredentials(clientCreds))
+	require.NoError(t, err)
+
+	// configure server tls
+	serverTLSConfig, err := config.SetupTLSConfig(config.TLSConfig{
+		CertFile:      config.ServerCertFile,
+		KeyFile:       config.ServerKeyFile,
+		CAFile:        config.CAFile,
+		ServerAddress: l.Addr().String(),
+	})
+	require.NoError(t, err)
+	serverCreds := credentials.NewTLS(serverTLSConfig)
 
 	// temporal directory to store the log files
 	dir, err := os.MkdirTemp("", "server-test")
@@ -61,13 +82,14 @@ func setupTest(t *testing.T, fn func(*Config)) (client api.LogClient, cfg *Confi
 	if fn != nil {
 		fn(cfg)
 	}
-	server, err := NewGRPCServer(cfg)
+	server, err := NewGRPCServer(cfg, grpc.Creds(serverCreds))
 	require.NoError(t, err)
 
 	// expose and serve grpc server in the background
 	go func() {
 		server.Serve(l)
 	}()
+
 	// create a new grpc log client
 	client = api.NewLogClient(clientConn)
 	// a helper function to close the connections and cleanup resources
