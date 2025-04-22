@@ -14,7 +14,7 @@ func SetupTLSConfig(cfg TLSConfig) (*tls.Config, error) {
 		// load the certificates into the tls config
 		tlsConfig.Certificates = make([]tls.Certificate, 1)
 		// read the public and private key pairs from the pem files
-		tlsConfig.Certificates[0], err = tls.LoadX509KeyPair(cfg.CAFile, cfg.KeyFile)
+		tlsConfig.Certificates[0], err = tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
 		if err != nil {
 			return nil, err
 		}

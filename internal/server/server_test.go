@@ -50,7 +50,9 @@ func setupTest(t *testing.T, fn func(*Config)) (client api.LogClient, cfg *Confi
 
 	// setup secure client connection by using the configured CA as the client's Root CA
 	clientTLSConfig, err := config.SetupTLSConfig(config.TLSConfig{
-		CAFile: config.CAFile,
+		CertFile: config.ClientCertFile,
+		KeyFile:  config.ClientKeyFile,
+		CAFile:   config.CAFile,
 	})
 	require.NoError(t, err)
 
@@ -59,12 +61,16 @@ func setupTest(t *testing.T, fn func(*Config)) (client api.LogClient, cfg *Confi
 	clientConn, err := grpc.NewClient(l.Addr().String(), grpc.WithTransportCredentials(clientCreds))
 	require.NoError(t, err)
 
+	// create grpc client for the log service
+	client = api.NewLogClient(clientConn)
+
 	// configure server tls
 	serverTLSConfig, err := config.SetupTLSConfig(config.TLSConfig{
 		CertFile:      config.ServerCertFile,
 		KeyFile:       config.ServerKeyFile,
 		CAFile:        config.CAFile,
 		ServerAddress: l.Addr().String(),
+		Server:        true,
 	})
 	require.NoError(t, err)
 	serverCreds := credentials.NewTLS(serverTLSConfig)
@@ -72,6 +78,7 @@ func setupTest(t *testing.T, fn func(*Config)) (client api.LogClient, cfg *Confi
 	// temporal directory to store the log files
 	dir, err := os.MkdirTemp("", "server-test")
 	require.NoError(t, err)
+	defer os.RemoveAll(dir)
 
 	// create new instance of the log
 	clientLog, err := log.NewLog(dir, log.Config{})

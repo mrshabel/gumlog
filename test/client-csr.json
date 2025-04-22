@@ -1,0 +1,17 @@
+{
+    "CN": "client",
+    "hosts": [""],
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "GH",
+            "L": "Accra",
+            "ST": "Greater Accra",
+            "O": "Shabel Services",
+            "OU": "Distributed Services"
+        }
+    ]
+}

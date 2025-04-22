@@ -1,4 +1,5 @@
-CONFIG_PATH=${HOME}/.gumlog/
+# path to store configuration files
+CONFIG_PATH=${shell echo $$HOME}/.gumlog/
 
 .PHONY: init
 # create a root directory to store the generated certs
@@ -7,16 +8,32 @@ init:
 
 # generate certs
 .PHONY: gencert
-gencert:
-	cfssl gencert -initca test/ca-csr.json | cfssljson -bare ca
+gencert: init
+	cfssl gencert -initca ./test/ca-csr.json | cfssljson -bare ca
 
 	cfssl gencert \
 		-ca=ca.pem \
 		-ca-key=ca-key.pem \
-		-config=test/ca-config.json \
+		-config=./test/ca-config.json \
 		-profile=server \
-	test/server-csr.json | cfssljson-bare server
+		./test/server-csr.json | cfssljson -bare server
+
+# start client certs generation
+	cfssl gencert \
+	-ca=ca.pem \
+	-ca-key=ca-key.pem \
+	-config=./test/ca-config.json \
+	-profile=client \
+ 	./test/client-csr.json | cfssljson -bare client
+
+# move certs and keys into the new file
 	mv *.pem *.csr ${CONFIG_PATH}
+
+# clean app files
+.PHONY: clean
+clean:
+	@echo "Cleaning app config files..."
+	rm -rf ${CONFIG_PATH}
 
 .PHONY: compile
 compile:
