@@ -2,9 +2,17 @@ package server
 
 import (
 	"context"
+	"fmt"
 
 	api "github.com/mrshabel/gumlog/api/v1"
+
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 )
 
 // a log interface that can be implemented as either an in-memory or persistent log
@@ -15,12 +23,41 @@ type CommitLog interface {
 
 type Config struct {
 	CommitLog CommitLog
+	// authorization enforcer with acl rules
+	Authorizer Authorizer
+}
+
+// access control constants
+const (
+	objectWildCard = "*"
+	produceAction  = "produce"
+	consumeAction  = "consume"
+)
+
+type Authorizer interface {
+	Authorize(subject, object, action string) error
+}
+
+// unique context key
+type subjectContextKey struct{}
+
+type grpcServer struct {
+	api.UnimplementedLogServer
+	*Config
 }
 
 // grpc server stub implementation
 var _ api.LogServer = (*grpcServer)(nil)
 
 func NewGRPCServer(config *Config, opts ...grpc.ServerOption) (*grpc.Server, error) {
+	// hook interceptor/middleware into the grpc request
+	// the authentication interceptor is registered on the middleware chain
+	opts = append(opts, grpc.StreamInterceptor(
+		grpc_middleware.ChainStreamServer(
+			grpc_auth.StreamServerInterceptor(authenticate),
+		)), grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
+		grpc_auth.UnaryServerInterceptor(authenticate),
+	)))
 	// create a new grpc server and register the service
 	gsrv := grpc.NewServer(opts...)
 	srv, err := newGRPCServer(config)
@@ -31,11 +68,6 @@ func NewGRPCServer(config *Config, opts ...grpc.ServerOption) (*grpc.Server, err
 	return gsrv, nil
 }
 
-type grpcServer struct {
-	api.UnimplementedLogServer
-	*Config
-}
-
 func newGRPCServer(config *Config) (srv *grpcServer, err error) {
 	return &grpcServer{Config: config}, nil
 }
@@ -44,6 +76,11 @@ func newGRPCServer(config *Config) (srv *grpcServer, err error) {
 
 // add a new record to the commit log
 func (s *grpcServer) Produce(ctx context.Context, req *api.ProduceRequest) (*api.ProduceResponse, error) {
+	// permit only allowed clients
+	if err := s.Authorizer.Authorize(subject(ctx), objectWildCard, produceAction); err != nil {
+		return nil, err
+	}
+
 	// append the record to the log
 	offset, err := s.CommitLog.Append(req.Record)
 	if err != nil {
@@ -55,6 +92,11 @@ func (s *grpcServer) Produce(ctx context.Context, req *api.ProduceRequest) (*api
 
 // retrieve a record from the commit log
 func (s *grpcServer) Consume(ctx context.Context, req *api.ConsumeRequest) (*api.ConsumeResponse, error) {
+	// permit only allowed clients
+	if err := s.Authorizer.Authorize(subject(ctx), objectWildCard, consumeAction); err != nil {
+		return nil, err
+	}
+
 	record, err := s.CommitLog.Read(req.Offset)
 	if err != nil {
 		return nil, err
@@ -111,4 +153,31 @@ func (s *grpcServer) ConsumeStream(req *api.ConsumeRequest, stream api.Log_Consu
 			req.Offset++
 		}
 	}
+}
+
+// read the subject information of a connected client certificate and write it to the server context using an interceptor(middleware)
+func authenticate(ctx context.Context) (context.Context, error) {
+	// get the peer information from the given context
+	peer, ok := peer.FromContext(ctx)
+	if !ok {
+		return ctx, status.New(
+			codes.Unknown, "couldn't get peer info",
+		).Err()
+	}
+	// extract the authentication information
+	if peer.AuthInfo == nil {
+		return context.WithValue(ctx, subjectContextKey{}, ""), nil
+	}
+	// cast peer info as tls credential and extract subject common name as specified in the CA certificate
+	tlsInfo := peer.AuthInfo.(credentials.TLSInfo)
+	subject := tlsInfo.State.VerifiedChains[0][0].Subject.CommonName
+	ctx = context.WithValue(ctx, subjectContextKey{}, subject)
+
+	return ctx, nil
+}
+
+// extract the subject information from a given context tree
+func subject(ctx context.Context) string {
+	fmt.Println("context val:", ctx.Value(subjectContextKey{}))
+	return ctx.Value(subjectContextKey{}).(string)
 }

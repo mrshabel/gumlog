@@ -23,3 +23,15 @@ Segment is the smallest unit of the log and contains pointers to a store and ind
 ### Log
 
 The log holds multiple segments which are logically related and can be queried as a unit. Only one segment in the log can be active at a time for writes. The setup of a log (new or existing) ensures that all associated segments data are either replayed or created with their appropriate max sizes from the configuration. A write will append to the active segment first then update the segment with an new offset (old offset + 1) if the current segment is maxed out. Records can be read with their offset values. Stale records will be cleared periodically to avoid maxing storage capacity. All segments in the log can be read as if they were a single record. This allows for easy data export to different nodes.
+
+## Network
+
+At a higher level, data is sent to the log as protocol buffers. Client communication with the server uses gRPC, where protobufs can be sent and received like a regular request-response cycle or streamed from both parties. The gRPC communication means used here are: unary, server-streaming, client-streaming, and bi-directional streaming.
+
+### Security
+
+TLS encryption channels are setup for communication between different components of the system. CloudFlare's CFSSL is used as a tool for building the PKI for the system where the configurations for both client and server are defined in json files (as found in tests directory). The equivalence Certificate Authority (CA) key and cert, client and server cert/keys are generated and placed in a shared directory. CFSSL allows the creation of a root authoritative server with certificate chains that are trusted in browsers and peer servers.
+
+#### Authorization
+
+Access Control List (ACL) authorization is used to ensure that only authorized clients (public and peer servers) have required access to perform a specific action. The ACL policies are defined in CSV file with entries: `subject`, `object`, `action`. An enforcer is implemented and chained on the gRPC interceptor(middleware) to ensure that the subject (owner of TLS certificate)'s common name (CN) is extracted and added to the current request context for subsequent checks. A public client certificate with CN, "nobody", is created for external clients without any access level attached while peer servers will have their own TLS certs with the required access levels.

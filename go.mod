@@ -6,6 +6,8 @@ require github.com/gorilla/mux v1.8.1
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
+	github.com/Knetic/govaluate v3.0.1-0.20171022003610-9aa49832a739+incompatible // indirect
+	github.com/casbin/casbin v1.9.1 // indirect
 	github.com/cloudflare/cfssl v1.6.5 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
@@ -13,6 +15,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/certificate-transparency-go v1.3.1 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
+	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/jmhodges/clock v1.2.0 // indirect
 	github.com/jmoiron/sqlx v1.4.0 // indirect
 	github.com/kisielk/sqlstruct v0.0.0-20210630145711-dae28ed37023 // indirect
@@ -29,7 +32,7 @@ require (
 	golang.org/x/net v0.39.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
-	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
 	google.golang.org/grpc v1.71.1 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
