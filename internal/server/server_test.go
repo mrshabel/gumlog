@@ -2,20 +2,42 @@ package server
 
 import (
 	"context"
+	"flag"
 	"net"
 	"os"
 	"testing"
+	"time"
 
 	api "github.com/mrshabel/gumlog/api/v1"
 	"github.com/mrshabel/gumlog/internal/auth"
 	"github.com/mrshabel/gumlog/internal/config"
 	"github.com/mrshabel/gumlog/internal/log"
 	"github.com/stretchr/testify/require"
+	"go.opencensus.io/examples/exporter"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 )
+
+var debug = flag.Bool("debug", false, "Enable observability for debugging")
+
+// enable logger setup for all subsequent tests
+func TestMain(m *testing.M) {
+	flag.Parse()
+	if *debug {
+		// configure zap development logger
+		logger, err := zap.NewDevelopment()
+		if err != nil {
+			panic(err)
+		}
+		// override global logger defaults
+		zap.ReplaceGlobals(logger)
+	}
+	// exit main function
+	os.Exit(m.Run())
+}
 
 func TestServer(t *testing.T) {
 	// run a table of tests against the different implementations of the client and server
@@ -103,8 +125,33 @@ func setupTest(t *testing.T, fn func(*Config)) (rootClient, nobodyClient api.Log
 
 	// add ACL authorizer
 	authorizer := auth.New(config.ACLModelFile, config.ACLPolicyFile)
-	cfg = &Config{CommitLog: clientLog, Authorizer: authorizer}
+
+	// setup and start telemetry exporter to send logs into a file
+	var telemetryExporter *exporter.LogExporter
+	if *debug {
+		metricsLogFile, err := os.CreateTemp("", "metrics-*.log")
+		require.NoError(t, err)
+		t.Logf("metrics log file: %s\n", metricsLogFile.Name())
+
+		tracesLogFile, err := os.CreateTemp("", "traces-*.log")
+		require.NoError(t, err)
+		t.Logf("traces log file: %s\n", tracesLogFile.Name())
+
+		// configure exporter for metrics and traces
+		telemetryExporter, err = exporter.NewLogExporter(exporter.Options{
+			MetricsLogFile:    metricsLogFile.Name(),
+			TracesLogFile:     tracesLogFile.Name(),
+			ReportingInterval: time.Second,
+		})
+		require.NoError(t, err)
+
+		// start exporter
+		err = telemetryExporter.Start()
+		require.NoError(t, err)
+	}
+
 	// execute the test function with the log configuration
+	cfg = &Config{CommitLog: clientLog, Authorizer: authorizer}
 	if fn != nil {
 		fn(cfg)
 	}
@@ -125,6 +172,13 @@ func setupTest(t *testing.T, fn func(*Config)) (rootClient, nobodyClient api.Log
 		l.Close()
 		// remove log
 		clientLog.Remove()
+
+		// gracefully shutdown exporter
+		if telemetryExporter != nil {
+			time.Sleep(1500 * time.Millisecond)
+			telemetryExporter.Stop()
+			telemetryExporter.Close()
+		}
 	}
 
 	return rootClient, nobodyClient, cfg, teardown

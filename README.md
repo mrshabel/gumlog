@@ -1,10 +1,10 @@
 # GUMLOG
 
-A distributed commit log service.
+A highly durable distributed commit log service. Records are transferred as protobuf in unary and streaming grpc communication modes.
 
 ## Storage Engine
 
-The log engine consists of segment(s) which holds an underlying store and index for storing records in bytes. The storage contains record lines represented by the record length (8-byte) and actual data in bytes in `bigEndian`. The index contains mapping of keys to their respective record offsets in the store. This is done to ensure that lookups can be faster. The index file is memory-mapped to reduce calls made to the disk and improve read response, similar to how a read in memory would be.
+The log engine consists of segment(s) which holds an underlying store and index for storing records in bytes. The storage contains record lines represented by the record length (8-byte) and actual data in bytes in `big-endian`. The index contains mapping of keys to their respective record offsets in the store. This is done to ensure that lookups can be faster. The index file is memory-mapped to reduce calls made to the disk and improve read response, similar to how a read in memory would be.
 Writes are moved into the file buffer when received, and flushed to the store on subsequent reads or storage closer. This however does not guarantee 99%+ durability as an ungraceful shutdown before a buffer flush could result in data loss. Further research and implementations will be made to ensure that the system is highly durable while maintaining the low latency guarantees, either through async buffer flushing by a background goroutine periodically or by enabling sync buffer flushing which makes sure every write goes to the underlying store before client acknowledgement is given.
 Data checksums to validate data integrity is not implemented in this version yet.
 
@@ -35,3 +35,7 @@ TLS encryption channels are setup for communication between different components
 #### Authorization
 
 Access Control List (ACL) authorization is used to ensure that only authorized clients (public and peer servers) have required access to perform a specific action. The ACL policies are defined in CSV file with entries: `subject`, `object`, `action`. An enforcer is implemented and chained on the gRPC interceptor(middleware) to ensure that the subject (owner of TLS certificate)'s common name (CN) is extracted and added to the current request context for subsequent checks. A public client certificate with CN, "nobody", is created for external clients without any access level attached while peer servers will have their own TLS certs with the required access levels.
+
+## Telemetry
+
+Metrics and Traces are collected with OpenTelemetry (OTEL) while Uber's Zap is used to collect structured logs. OTEL's metrics collector provides "SDK's" that can be used to collect and export all relevant telemetry to any backend such as Prometheus, Datadog. The logger, metric, and traces collector are chained in the gRPC interceptor chained for both unary and streaming middleware chains to ensure that data is collected in both communication modes without repetively writing code for each RPC call.

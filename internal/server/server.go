@@ -3,11 +3,19 @@ package server
 import (
 	"context"
 	"fmt"
+	"time"
 
 	api "github.com/mrshabel/gumlog/api/v1"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
+	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
+	"go.opencensus.io/plugin/ocgrpc"
+	"go.opencensus.io/stats/view"
+	"go.opencensus.io/trace"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -50,15 +58,53 @@ type grpcServer struct {
 var _ api.LogServer = (*grpcServer)(nil)
 
 func NewGRPCServer(config *Config, opts ...grpc.ServerOption) (*grpc.Server, error) {
-	// hook interceptor/middleware into the grpc request
+	// create a global named logger for the server with configurations
+	logger := zap.L().Named("server")
+	// record duration of request in log
+	zapOpts := []grpc_zap.Option{
+		grpc_zap.WithDurationField(
+			func(duration time.Duration) zapcore.Field {
+				return zap.Int64(
+					"grpc.time_ns", duration.Nanoseconds(),
+				)
+			},
+		),
+	}
+	// setup opencensus tracing to sample all traces
+	trace.ApplyConfig(trace.Config{
+		DefaultSampler: trace.AlwaysSample(),
+	})
+	if err := view.Register(ocgrpc.DefaultServerViews...); err != nil {
+		return nil, err
+	}
+	// trace only 'produce' requests. this will record request/response size, latency
+	// halfSampler := trace.ProbabilitySampler(0.5)
+	// trace.ApplyConfig(trace.Config{
+	// 	DefaultSampler: func(sp trace.SamplingParameters) trace.SamplingDecision {
+	// 		if strings.Contains(sp.Name, "Produce") {
+	// 			return trace.SamplingDecision{Sample: true}
+	// 		}
+	// 		return halfSampler(sp)
+	// 	},
+	// })
+
+	// hook unary and streaming interceptor/middleware into the grpc request
 	// the authentication interceptor is registered on the middleware chain
 	opts = append(opts, grpc.StreamInterceptor(
 		grpc_middleware.ChainStreamServer(
+			// record traces and logs
+			grpc_ctxtags.StreamServerInterceptor(),
+			grpc_zap.StreamServerInterceptor(logger, zapOpts...),
 			grpc_auth.StreamServerInterceptor(authenticate),
 		)), grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
+		grpc_ctxtags.UnaryServerInterceptor(),
+		grpc_zap.UnaryServerInterceptor(logger, zapOpts...),
 		grpc_auth.UnaryServerInterceptor(authenticate),
 	)))
-	// create a new grpc server and register the service
+	// attach opencensus stat handler to record stats
+	opts = append(opts, grpc.StatsHandler(&ocgrpc.ServerHandler{}))
+
+	// create a new grpc server and register the service with telemetry options
 	gsrv := grpc.NewServer(opts...)
 	srv, err := newGRPCServer(config)
 	if err != nil {
