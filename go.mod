@@ -38,6 +38,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
+	github.com/travisjeffery/go-dynaport v1.0.0 // indirect
 	github.com/tysonmote/gommap v0.0.3 // indirect
 	github.com/weppos/publicsuffix-go v0.40.3-0.20250408071509-6074bbe7fd39 // indirect
 	github.com/zmap/zcrypto v0.0.0-20250418211859-7510c141e4b7 // indirect

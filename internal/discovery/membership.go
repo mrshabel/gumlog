@@ -43,7 +43,7 @@ type Config struct {
 	// and RPC addresses
 	Tags map[string]string
 	// existing node addresses that any new node can join. the new node
-	// will connect to one none in the define addresses and then broadcast
+	// will connect to one node in the defined addresses and then broadcast
 	// its presence to the other nodes through gossiping
 	StartJoinAddrs []string
 }
@@ -139,6 +139,11 @@ func (m *Membership) isLocal(member serf.Member) bool {
 // Members return a snapshot of  all the current members in the cluster
 func (m *Membership) Members() []serf.Member {
 	return m.serf.Members()
+}
+
+// Leave tells member to leave the cluster
+func (m *Membership) Leave() error {
+	return m.serf.Leave()
 }
 
 // logError logs the given error message with the member's details
