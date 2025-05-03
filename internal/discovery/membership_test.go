@@ -81,6 +81,7 @@ func setupMember(t *testing.T, members []*Membership) ([]*Membership, *handler) 
 		h.joins = make(chan map[string]string, 3)
 		h.leaves = make(chan string, 3)
 	} else {
+		// join via first member in the cluster
 		c.StartJoinAddrs = []string{
 			members[0].BindAddr,
 		}
