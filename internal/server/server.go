@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	api "github.com/mrshabel/gumlog/api/v1"
@@ -224,6 +223,5 @@ func authenticate(ctx context.Context) (context.Context, error) {
 
 // extract the subject information from a given context tree
 func subject(ctx context.Context) string {
-	fmt.Println("context val:", ctx.Value(subjectContextKey{}))
 	return ctx.Value(subjectContextKey{}).(string)
 }

@@ -26,6 +26,19 @@ type Replicator struct {
 	close chan struct{}
 }
 
+// init sets up logger and replicator channels
+func (r *Replicator) init() {
+	if r.logger == nil {
+		r.logger = zap.L().Named("replicator")
+	}
+	if r.servers == nil {
+		r.servers = make(map[string]chan struct{})
+	}
+	if r.close == nil {
+		r.close = make(chan struct{})
+	}
+}
+
 // Join adds the server address to the list of servers to start replication
 func (r *Replicator) Join(name, addr string) error {
 	r.mu.Lock()
@@ -125,19 +138,6 @@ func (r *Replicator) Leave(name string) error {
 	close(r.servers[name])
 	delete(r.servers, name)
 	return nil
-}
-
-// init sets up logger and replicator channels
-func (r *Replicator) init() {
-	if r.logger == nil {
-		r.logger = zap.L().Named("replicator")
-	}
-	if r.servers == nil {
-		r.servers = make(map[string]chan struct{})
-	}
-	if r.close == nil {
-		r.close = make(chan struct{})
-	}
 }
 
 // Close closes the replicator and stops replicating to new and existing servers
