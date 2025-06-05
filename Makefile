@@ -67,3 +67,14 @@ $(CONFIG_PATH)/policy.csv:
 test: $(CONFIG_PATH)/policy.csv $(CONFIG_PATH)/model.conf
 	@echo "Running tests..."
 	go test -race -v ./...
+
+
+.PHONY: help
+help:
+	@echo "Available commands:"
+	@echo "  init        - Create root directory for configuration files in ${CONFIG_PATH}"
+	@echo "  gencert     - Generate SSL certificates using CloudFlare CFSSL"
+	@echo "  cleancert   - Remove all generated certificates from ${CONFIG_PATH}"
+	@echo "  compile     - Compile protobuf files into Go code"
+	@echo "  test        - Run tests with race detection"
+	@echo "  help        - Show this help message"
